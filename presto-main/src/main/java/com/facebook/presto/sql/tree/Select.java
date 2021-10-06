@@ -32,6 +32,7 @@ public class Select
     @Override
     public <R, C> R accept(AstVisitor<R, C> visitor, C context)
     {
+        // zeng: select 逻辑计划
         return visitor.visitSelect(this, context);
     }
 

@@ -6,6 +6,7 @@ public abstract class AstVisitor<R, C>
 {
     public R process(Node node, @Nullable C context)
     {
+        // zeng: Query.accept
         return node.accept(this, context);
     }
 

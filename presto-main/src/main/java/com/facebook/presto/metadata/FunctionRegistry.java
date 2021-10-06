@@ -56,6 +56,7 @@ public class FunctionRegistry
     private final Multimap<QualifiedName, FunctionInfo> functionsByName;
     private final Map<FunctionHandle, FunctionInfo> functionsByHandle;
 
+    // zeng: 所有聚合函数
     public FunctionRegistry()
     {
         List<FunctionInfo> functions = new FunctionListBuilder()

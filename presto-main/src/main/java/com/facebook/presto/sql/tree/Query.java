@@ -5,6 +5,7 @@ import com.google.common.base.Preconditions;
 
 import java.util.List;
 
+// zeng: selectStmt规则对应节点
 public class Query
         extends Statement
 {
@@ -78,6 +79,7 @@ public class Query
     @Override
     public <R, C> R accept(AstVisitor<R, C> visitor, C context)
     {
+        // zeng: select语句 逻辑计划
         return visitor.visitQuery(this, context);
     }
 

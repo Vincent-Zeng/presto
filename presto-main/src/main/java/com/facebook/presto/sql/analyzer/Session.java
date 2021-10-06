@@ -19,6 +19,7 @@ public class Session
 
     public Session(@Nullable String user, String catalog, String schema)
     {
+        // zeng: user catalog schema 当前时间 唯一确定一个session
         this(user, catalog, schema, System.currentTimeMillis());
     }
 

@@ -56,8 +56,11 @@ public class ExpressionAnalyzer
 
     public AnalyzedExpression analyze(Expression expression, TupleDescriptor sourceDescriptor)
     {
+        // zeng: Visitor.visitXxx(), 返回expr的值类型
+        // zeng: Expression 的子类有 IsNullPredicate, InPredicate 等
         Type type = new Visitor(metadata, sourceDescriptor).process(expression, null);
 
+        // zeng: 替换 列全限定名 为 symbol
         Expression rewritten = TreeRewriter.rewriteWith(new NameToSymbolRewriter(sourceDescriptor), expression);
 
         return new AnalyzedExpression(type, rewritten);

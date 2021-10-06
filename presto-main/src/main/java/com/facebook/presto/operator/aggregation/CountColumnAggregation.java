@@ -8,6 +8,7 @@ import com.facebook.presto.tuple.TupleInfo;
 
 import static com.facebook.presto.tuple.TupleInfo.SINGLE_LONG;
 
+// zeng: count 聚合函数实现
 public class CountColumnAggregation
         implements FixedWidthAggregationFunction
 {

@@ -18,6 +18,7 @@ import java.util.NoSuchElementException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+// zeng: stage
 /**
  * Manage queries scheduled on this node
  */

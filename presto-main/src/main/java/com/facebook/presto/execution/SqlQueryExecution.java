@@ -129,7 +129,8 @@ public class SqlQueryExecution
             stageInfo = outputStage.getStageInfo();
         }
 
-        return new QueryInfo(queryId,
+        return new QueryInfo(
+                queryId,
                 session,
                 queryState.get(),
                 locationFactory.createQueryLocation(queryId),
@@ -137,9 +138,11 @@ public class SqlQueryExecution
                 sql,
                 queryStats,
                 stageInfo,
-                toFailures(failureCauses));
+                toFailures(failureCauses)
+        );
     }
 
+    // zeng: select 执行
     @Override
     public void start()
     {
@@ -147,16 +150,20 @@ public class SqlQueryExecution
 
         // transition to scheduling
         synchronized (this) {
+            // zeng: status queued -> planning
             Preconditions.checkState(queryState.compareAndSet(QueryState.QUEUED, QueryState.PLANNING), "Stage has already been started");
         }
 
         try {
             // query is now started
+            // zeng: 在队列中的时间
             queryStats.recordAnalysisStart();
 
             // analyze query
+            // zeng: TODO 构建分布式逻辑计划？
             SubPlan subplan = analyzeQuery();
 
+            // zeng: TODO 构建物理计划？
             // plan distribution of query
             planDistribution(subplan);
 
@@ -181,6 +188,7 @@ public class SqlQueryExecution
         }
     }
 
+    // zeng: select 执行计划
     private SubPlan analyzeQuery()
     {
         Preconditions.checkState(!Thread.holdsLock(this), "Can not analyse while holding a lock on this");
@@ -188,21 +196,27 @@ public class SqlQueryExecution
         // time analysis phase
         long analysisStart = System.nanoTime();
 
+        // zeng: statement 规则节点
         // parse query
         Statement statement = SqlParser.createStatement(sql);
 
         // analyze query
         Analyzer analyzer = new Analyzer(session, metadata);
+        // zeng: 逻辑计划
         AnalysisResult analysis = analyzer.analyze(statement);
 
         // plan query
         LogicalPlanner logicalPlanner = new LogicalPlanner(session, metadata);
+        // zeng: 优化后的逻辑计划
         PlanNode plan = logicalPlanner.plan(analysis);
 
         // fragment the plan
+        // zeng: 分布式逻辑计划
         SubPlan subplan = new DistributedLogicalPlanner(metadata).createSubplans(plan, analysis.getSymbolAllocator(), false);
 
+        // zeng: 记录 构建分布式逻辑计划的时间
         queryStats.recordAnalysisTime(analysisStart);
+
         return subplan;
     }
 

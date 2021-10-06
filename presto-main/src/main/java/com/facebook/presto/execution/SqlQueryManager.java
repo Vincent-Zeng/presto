@@ -33,8 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.facebook.presto.util.Threads.threadsNamed;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.collect.Iterables.filter;
-import static com.google.common.collect.Iterables.transform;
+import static com.google.common.collect.Iterables.*;
 
 @ThreadSafe
 public class SqlQueryManager
@@ -173,15 +172,18 @@ public class SqlQueryManager
         return query.getQueryInfo();
     }
 
+    // zeng: select查询提交
     @Override
     public QueryInfo createQuery(Session session, String query)
     {
         checkNotNull(query, "query is null");
         Preconditions.checkArgument(query.length() > 0, "query must not be empty string");
 
+        // zeng: query id
         String queryId = String.valueOf(nextQueryId.getAndIncrement());
+
         QueryExecution queryExecution;
-        if (query.startsWith("import-table:")) {
+        if (query.startsWith("import-table:")) {    // zeng: google不到 不知道干啥的
             Preconditions.checkState(importsEnabled, "Imports are currently disabled");
 
             // todo this is a hack until we have language support for import or create table as select
@@ -198,23 +200,32 @@ public class SqlQueryManager
                     query);
         }
         else {
-            queryExecution = new SqlQueryExecution(queryId,
-                    query,
-                    session,
-                    metadata,
-                    nodeManager,
-                    splitManager,
-                    stageManager,
-                    remoteTaskFactory,
-                    locationFactory,
-                    queryMonitor);
+            queryExecution = new SqlQueryExecution(
+                    queryId,    // zeng: query id
+                    query,  // zeng: sql
+                    session,    // zeng: session
+                    metadata,   // zeng: MetadataManager
+                    nodeManager,    // zeng: NodeManager
+                    splitManager,   // zeng: SplitManager
+                    stageManager,   // zeng: SqlStageManager
+                    remoteTaskFactory,  // zeng: HttpRemoteTaskFactory
+                    locationFactory,    // zeng: HttpLocationFactory
+                    queryMonitor    // zeng: QueryMonitor
+            );
+
+            // zeng: TODO
             queryMonitor.createdEvent(queryExecution.getQueryInfo());
         }
+
+        // zeng: TODO
         queries.put(queryExecution.getQueryId(), queryExecution);
 
         // start the query in the background
-        queryExecutor.submit(new QueryStarter(queryExecution));
+        queryExecutor.submit(   // zeng: 线程池执行
+                new QueryStarter(queryExecution)    // zeng: queryExecution.start
+        );
 
+        // zeng: TODO query info
         return queryExecution.getQueryInfo();
     }
 

@@ -76,6 +76,7 @@ public class DefaultTraversalVisitor<R, C>
         return null;
     }
 
+    // zeng: select节点
     @Override
     protected R visitSelect(Select node, C context)
     {

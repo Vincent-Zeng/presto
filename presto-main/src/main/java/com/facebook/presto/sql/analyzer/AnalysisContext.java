@@ -22,7 +22,10 @@ class AnalysisContext
 
     public AnalysisContext(Session session)
     {
-        this(session, new SymbolAllocator());
+        this(
+                session,    // zeng: session
+                new SymbolAllocator()   // zeng: TODO
+        );
     }
 
     public AnalysisContext(Session session, SymbolAllocator symbolAllocator)

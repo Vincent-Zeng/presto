@@ -16,6 +16,7 @@ import javax.ws.rs.core.Response;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static javax.ws.rs.core.Response.Status;
 
+// zeng: shard
 @Path("/v1/shard")
 public class ShardResource
 {

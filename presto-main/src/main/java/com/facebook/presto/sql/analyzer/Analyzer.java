@@ -97,11 +97,15 @@ public class Analyzer
 
     public AnalysisResult analyze(Node node)
     {
-        return analyze(node, new AnalysisContext(session));
+        return analyze(
+                node,   // zeng: node
+                new AnalysisContext(session)    // zeng: AnalysisContext
+        );
     }
 
     private AnalysisResult analyze(Node node, AnalysisContext context)
     {
+        // zeng: StatementAnalyzer.process
         StatementAnalyzer analyzer = new StatementAnalyzer(metadata);
         return analyzer.process(node, context);
     }
@@ -122,45 +126,61 @@ public class Analyzer
             throw new UnsupportedOperationException("not yet implemented: " + node);
         }
 
+        // zeng: query 逻辑计划
         @Override
         protected AnalysisResult visitQuery(Query query, AnalysisContext context)
         {
+            // zeng: 不支持having?
             Preconditions.checkArgument(query.getHaving() == null, "not yet implemented: HAVING");
+            // zeng: 不支持join？
             Preconditions.checkArgument(query.getFrom().size() == 1, "not yet implemented: multiple FROM relations");
 
             // prevent symbol allocator from picking symbols named the same as output aliases, since both share the same namespace for reference resolution
-            for (Expression expression : query.getSelect().getSelectItems()) {
-                if (expression instanceof AliasedExpression) {
+            for (Expression expression : query.getSelect().getSelectItems()) {  // zeng: select后的表达式， 包括 * 和 T.* 这种
+                if (expression instanceof AliasedExpression) {   // zeng: 带列别名
+                    // zeng: 别名 不能作为 column symbol
                     context.getSymbolAllocator().blacklist(((AliasedExpression) expression).getAlias());
                 }
-                else if (expression instanceof QualifiedNameReference) {
+                else if (expression instanceof QualifiedNameReference) {    // zeng: 带限定名
+                    // zeng: 限定名 不能作为 column symbol
                     context.getSymbolAllocator().blacklist(((QualifiedNameReference) expression).getName().toString());
                 }
             }
 
             // analyze FROM clause
+            // zeng: Relation 有 Table Join Subquery AliasedRelation 等子类
             Relation relation = Iterables.getOnlyElement(query.getFrom());
-            TupleDescriptor sourceDescriptor = new RelationAnalyzer(metadata, context.getSession()).process(relation, context);
+            // zeng: RelationAnalyzer.visitXxx() 返回 列信息
+            TupleDescriptor sourceDescriptor = new RelationAnalyzer(metadata, context.getSession())
+                    .process(relation, context);
 
             AnalyzedExpression predicate = null;
             if (query.getWhere() != null) {
+                // zeng:  解析 where 后的expression
                 predicate = analyzePredicate(query.getWhere(), sourceDescriptor);
             }
 
+            // zeng: 解析group by后的expression
             List<AnalyzedExpression> groupBy = analyzeGroupBy(query.getGroupBy(), sourceDescriptor);
+            // zeng: 解析select 和 order by 得到所有的AnalyzedFunction
             Set<AnalyzedFunction> aggregations = analyzeAggregations(query.getGroupBy(), query.getSelect(), query.getOrderBy(), sourceDescriptor);
+            // zeng: TODO
             List<AnalyzedOrdering> orderBy = analyzeOrderBy(query.getOrderBy(), sourceDescriptor);
+            // zeng: TODO
             AnalyzedOutput output = analyzeOutput(query.getSelect(), context.getSymbolAllocator(), sourceDescriptor);
 
             if (query.getSelect().isDistinct()) {
+                // zeng: TODO
                 analyzeDistinct(output, orderBy);
             }
 
             Long limit = null;
             if (query.getLimit() != null) {
+                // zeng: limit
                 limit = Long.parseLong(query.getLimit());
             }
 
+            // zeng: TODO
             return AnalysisResult.newInstance(context, query.getSelect().isDistinct(), output, predicate, groupBy, aggregations, limit, orderBy, query);
         }
 
@@ -338,11 +358,15 @@ public class Analyzer
 
         private AnalyzedExpression analyzePredicate(Expression predicate, TupleDescriptor sourceDescriptor)
         {
+            // zeng: 解析expression, 获得expression的返回值type 以及 用symbol替换列全限定名
             AnalyzedExpression analyzedExpression = new ExpressionAnalyzer(metadata).analyze(predicate, sourceDescriptor);
+
             Type expressionType = analyzedExpression.getType();
+
             if (expressionType != Type.BOOLEAN && expressionType != Type.NULL) {
                 throw new SemanticException(predicate, "WHERE clause must evaluate to a boolean: actual type %s", expressionType);
             }
+
             return analyzedExpression;
         }
 
@@ -421,15 +445,26 @@ public class Analyzer
             List<Expression> scalarTerms = new ArrayList<>();
             ImmutableSet.Builder<AnalyzedFunction> aggregateTermsBuilder = ImmutableSet.builder();
             // analyze select and order by terms
-            for (Expression term : concat(transform(select.getSelectItems(), unaliasFunction()), transform(orderBy, sortKeyGetter()))) {
+            for (Expression term : concat(
+                    transform(
+                            select.getSelectItems(),
+                            unaliasFunction()   // zeng: 去除别名
+                    ),
+                    transform(
+                            orderBy,
+                            sortKeyGetter() // zeng: 获取order by后面的expression
+                    )
+            )) {
                 // TODO: this doesn't currently handle queries like 'SELECT k + sum(v) FROM T GROUP BY k' correctly
                 AggregateAnalyzer analyzer = new AggregateAnalyzer(metadata, descriptor);
 
+                // zeng: 分析expression获取 AnalyzedFunction
                 List<AnalyzedFunction> aggregations = analyzer.analyze(term);
-                if (aggregations.isEmpty()) {
+
+                if (aggregations.isEmpty()) {   // zeng: 非聚合列
                     scalarTerms.add(term);
                 }
-                else {
+                else {  // zeng: 聚合列
                     if (Iterables.any(aggregations, distinctPredicate())) {
                         throw new SemanticException(select, "DISTINCT in aggregation parameters not yet supported");
                     }
@@ -437,21 +472,25 @@ public class Analyzer
                 }
             }
 
+            // zeng: 所有 AnalyzedFunction
             Set<AnalyzedFunction> aggregateTerms = aggregateTermsBuilder.build();
 
             if (!groupBy.isEmpty()) {
+                // zeng: 非聚合列必须包含在group by中
                 Iterable<Expression> notInGroupBy = Iterables.filter(scalarTerms, not(in(groupBy)));
                 if (!Iterables.isEmpty(notInGroupBy)) {
                     throw new SemanticException(select, "Expressions must appear in GROUP BY clause or be used in an aggregate function: %s", Iterables.transform(notInGroupBy, ExpressionFormatter.expressionFormatterFunction()));
                 }
             }
             else {
+                // zeng: 没有group by时， 聚合列 和 非聚合列不能同时存在
                 // if this is an aggregation query and some terms are not aggregates and there's no group by clause...
                 if (!scalarTerms.isEmpty() && !aggregateTerms.isEmpty()) {
                     throw new SemanticException(select, "Mixing of aggregate and non-aggregate columns is illegal if there is no GROUP BY clause: %s", Iterables.transform(scalarTerms, ExpressionFormatter.expressionFormatterFunction()));
                 }
             }
 
+            // zeng: 返回所有 AnalyzedFunction
             return aggregateTerms;
         }
     }
@@ -475,35 +514,52 @@ public class Analyzer
 
         public List<AnalyzedFunction> analyze(Expression expression)
         {
+            // zeng: reset
             aggregations = new ArrayList<>();
+            // zeng: 解析expression节点获取AnalyzedFunction, 表达式中可能包含FunctionCall节点
+            // zeng: 一个表达式可能包含多个FunctionCall节点
             process(expression, null);
 
             return aggregations;
         }
 
         @Override
-        protected Void visitFunctionCall(FunctionCall node, FunctionCall enclosingAggregate)
+        protected Void visitFunctionCall(FunctionCall node, FunctionCall enclosingAggregate)    // zeng: FunctionCall节点
         {
             ImmutableList.Builder<AnalyzedExpression> argumentsAnalysis = ImmutableList.builder();
             ImmutableList.Builder<Type> argumentTypes = ImmutableList.builder();
-            for (Expression expression : node.getArguments()) {
+
+            for (Expression expression : node.getArguments()) { // zeng: 遍历参数
+                // zeng: 解析参数expression为AnalyzedExpression
                 AnalyzedExpression analysis = new ExpressionAnalyzer(metadata).analyze(expression, descriptor);
                 argumentsAnalysis.add(analysis);
+
+                // zeng: 参数值类型
                 argumentTypes.add(analysis.getType());
             }
 
+            // zeng: NativeMetadata.getFunction 因为聚合是presto本身在做
             FunctionInfo info = metadata.getFunction(node.getName(), Lists.transform(argumentTypes.build(), Type.toRaw()));
 
             if (info != null && info.isAggregate()) {
+                // zeng: 不支持嵌套聚合函数
                 if (enclosingAggregate != null) {
                     throw new SemanticException(node, "Cannot nest aggregate functions: %s", ExpressionFormatter.toString(enclosingAggregate));
                 }
 
+                // zeng: 列 全限定名 改写为 symbol
                 FunctionCall rewritten = TreeRewriter.rewriteWith(new NameToSymbolRewriter(descriptor), node);
-                aggregations.add(new AnalyzedFunction(info, argumentsAnalysis.build(), rewritten, node.isDistinct()));
+
+                aggregations.add(
+                        // zeng: function info，解析过的参数expression， 改写列全限定名为symbol的function call, 参数中是否包含distinct
+                        new AnalyzedFunction(info, argumentsAnalysis.build(), rewritten, node.isDistinct())
+                );
+
+                // zeng: 参数中可能有非聚合函数
                 return super.visitFunctionCall(node, node); // visit children
             }
 
+            // zeng: 非聚合函数的参数可以是聚合函数
             return super.visitFunctionCall(node, enclosingAggregate);
         }
     }
@@ -539,6 +595,7 @@ public class Analyzer
         @Override
         protected TupleDescriptor visitTable(Table table, AnalysisContext context)
         {
+            // zeng: 全限定名
             QualifiedName name = table.getName();
 
             if (name.getParts().size() > 3) {
@@ -546,30 +603,46 @@ public class Analyzer
             }
 
             List<String> parts = Lists.reverse(name.getParts());
+
+            // zeng: 表名
             String tableName = parts.get(0);
+            // zeng: schema名称
             String schemaName = (parts.size() > 1) ? parts.get(1) : session.getSchema();
+            // zeng: catalog名
             String catalogName = (parts.size() > 2) ? parts.get(2) : session.getCatalog();
 
+            // zeng: TODO 获取table元数据
             TableMetadata tableMetadata = metadata.getTable(catalogName, schemaName, tableName);
+
             if (tableMetadata == null) {
                 throw new SemanticException(table, "Table %s does not exist", name);
             }
 
+            // zeng: 组装列
             ImmutableList.Builder<Field> fields = ImmutableList.builder();
             for (ColumnMetadata column : tableMetadata.getColumns()) {
+                // zeng: catalog, schema, table name 组成的限定名
                 QualifiedName prefix = QualifiedName.of(tableMetadata.getCatalogName(), tableMetadata.getSchemaName(), tableMetadata.getTableName());
 
+                // zeng: TODO 列在查询结果中的唯一标识符？
                 Symbol symbol = context.getSymbolAllocator().newSymbol(column.getName(), Type.fromRaw(column.getType()));
 
                 Preconditions.checkArgument(column.getColumnHandle().isPresent(), "Column doesn't have a handle");
+
+                // zeng: new Field
                 fields.add(new Field(Optional.of(prefix), Optional.of(column.getName()), column.getColumnHandle(), symbol, Type.fromRaw(column.getType())));
             }
 
+            // zeng: 所有列
             TupleDescriptor descriptor = new TupleDescriptor(fields.build());
+
+            // zeng: 表元数据 和 列的列表 存入context
             context.registerTable(table, descriptor, tableMetadata);
+
             return descriptor;
         }
 
+        // zeng: TODO
         @Override
         protected TupleDescriptor visitAliasedRelation(AliasedRelation relation, AnalysisContext context)
         {
@@ -587,6 +660,7 @@ public class Analyzer
             return new TupleDescriptor(builder.build());
         }
 
+        // zeng: TODO
         @Override
         protected TupleDescriptor visitSubquery(Subquery node, AnalysisContext context)
         {
@@ -598,6 +672,7 @@ public class Analyzer
             return analysis.getOutputDescriptor();
         }
 
+        // zeng: TODO
         @Override
         protected TupleDescriptor visitJoin(Join node, AnalysisContext context)
         {

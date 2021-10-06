@@ -85,10 +85,14 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 public class ServerMainModule
         extends AbstractConfigurationAwareModule
 {
+    // zeng: 服务端bean注册与依赖注入
     @Override
     protected void configure()
     {
+        // zeng: query service
         binder.bind(QueryResource.class).in(Scopes.SINGLETON);
+
+        // zeng: sql query manager
         binder.bind(QueryManager.class).to(SqlQueryManager.class).in(Scopes.SINGLETON);
         bindConfig(binder).to(QueryManagerConfig.class);
 

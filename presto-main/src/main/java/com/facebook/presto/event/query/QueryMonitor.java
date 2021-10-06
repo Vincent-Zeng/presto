@@ -24,6 +24,7 @@ public class QueryMonitor
     {
         this.stageInfoJsonCodec = checkNotNull(stageInfoJsonCodec, "stageInfoJsonCodec is null");
         this.failureInfoJsonCodec = checkNotNull(failureInfoJsonCodec, "failureInfoJsonCodec is null");
+        // zeng: ScribeEventClient
         this.eventClient = checkNotNull(eventClient, "eventClient is null");
     }
 

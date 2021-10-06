@@ -18,7 +18,9 @@ public final class SqlParser
 
     public static Statement createStatement(String sql)
     {
-        return createStatement(parseStatement(sql));
+        return createStatement( // zeng: 从树中获得statement规则节点
+                parseStatement(sql) // zeng: 获得singleStatement语法分析树
+        );
     }
 
     public static Expression createExpression(String expression)
@@ -51,10 +53,12 @@ public final class SqlParser
         }
     }
 
+    // zeng: sql 生成 语法分析树
     @VisibleForTesting
     static CommonTree parseStatement(String sql)
     {
         try {
+            // zeng: singleStatement子树
             return (CommonTree) getParser(sql).singleStatement().getTree();
         }
         catch (RecognitionException e) {
@@ -74,9 +78,13 @@ public final class SqlParser
 
     private static StatementParser getParser(String sql)
     {
+        // zeng: 字符流
         CharStream stream = new CaseInsensitiveStream(new ANTLRStringStream(sql));
+        // zeng: 词法分析器
         StatementLexer lexer = new StatementLexer(stream);
+        // zeng: 词法符号流
         TokenStream tokenStream = new CommonTokenStream(lexer);
+        // zeng: 语法分析器
         return new StatementParser(tokenStream);
     }
 }

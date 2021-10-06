@@ -34,6 +34,7 @@ import static com.facebook.presto.sql.analyzer.Session.DEFAULT_SCHEMA;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.airlift.http.client.HttpUriBuilder.uriBuilderFrom;
 
+// zeng: query
 /**
  * Manage queries scheduled on this node
  */
@@ -72,9 +73,10 @@ public class QueryResource
         }
     }
 
+    // zeng: 提交select查询
     @POST
     @Produces(MediaType.APPLICATION_JSON)
-    public Response createQuery(String query,
+    public Response createQuery(String query,   // zeng: sql
             @HeaderParam(PRESTO_USER) String user,
             @HeaderParam(PRESTO_CATALOG) @DefaultValue(DEFAULT_CATALOG) String catalog,
             @HeaderParam(PRESTO_SCHEMA) @DefaultValue(DEFAULT_SCHEMA) String schema,
@@ -84,7 +86,9 @@ public class QueryResource
         checkNotNull(catalog, "catalog is null");
         checkNotNull(schema, "schema is null");
 
+        // zeng: queryInfo
         QueryInfo queryInfo = queryManager.createQuery(new Session(user, catalog, schema), query);
+
         URI pagesUri = uriBuilderFrom(uriInfo.getRequestUri()).appendPath(queryInfo.getQueryId()).build();
         return Response.created(pagesUri).entity(queryInfo).build();
     }

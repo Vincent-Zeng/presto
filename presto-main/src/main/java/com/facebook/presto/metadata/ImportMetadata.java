@@ -36,6 +36,8 @@ public class ImportMetadata
     public TableMetadata getTable(String catalogName, String schemaName, String tableName)
     {
         checkTableName(catalogName, schemaName, tableName);
+
+        // zeng: HiveClient
         ImportClient client = importClientManager.getClient(catalogName);
 
         List<SchemaField> tableSchema = getTableSchema(client, schemaName, tableName);
