@@ -45,6 +45,7 @@ public class PruneRedundantProjections
                 return new ProjectNode(source, node.getOutputMap());
             }
 
+            // zeng: 所有映射都是相同的 可以省略掉这个project node
             boolean canElide = true;
             for (Map.Entry<Symbol, Expression> entry : node.getOutputMap().entrySet()) {
                 Expression expression = entry.getValue();

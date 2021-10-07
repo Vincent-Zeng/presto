@@ -160,7 +160,7 @@ public class SqlQueryExecution
             queryStats.recordAnalysisStart();
 
             // analyze query
-            // zeng: TODO 构建分布式逻辑计划？
+            // zeng: 构建分布式逻辑计划
             SubPlan subplan = analyzeQuery();
 
             // zeng: TODO 构建物理计划？
@@ -196,23 +196,24 @@ public class SqlQueryExecution
         // time analysis phase
         long analysisStart = System.nanoTime();
 
-        // zeng: statement 规则节点
+        // zeng: statement 规则 树
         // parse query
         Statement statement = SqlParser.createStatement(sql);
 
+        // zeng: 分析获得 query 要素
         // analyze query
         Analyzer analyzer = new Analyzer(session, metadata);
-        // zeng: 逻辑计划
         AnalysisResult analysis = analyzer.analyze(statement);
 
+        // zeng: 优化后的逻辑计划
         // plan query
         LogicalPlanner logicalPlanner = new LogicalPlanner(session, metadata);
-        // zeng: 优化后的逻辑计划
         PlanNode plan = logicalPlanner.plan(analysis);
 
-        // fragment the plan
         // zeng: 分布式逻辑计划
-        SubPlan subplan = new DistributedLogicalPlanner(metadata).createSubplans(plan, analysis.getSymbolAllocator(), false);
+        // fragment the plan
+        SubPlan subplan = new DistributedLogicalPlanner(metadata)
+                .createSubplans(plan, analysis.getSymbolAllocator(), false);
 
         // zeng: 记录 构建分布式逻辑计划的时间
         queryStats.recordAnalysisTime(analysisStart);

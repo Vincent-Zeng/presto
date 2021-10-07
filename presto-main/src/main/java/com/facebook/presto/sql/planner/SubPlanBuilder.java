@@ -80,10 +80,19 @@ public class SubPlanBuilder
 
     public SubPlan build()
     {
+        // zeng: 依赖的symbol列表
         Set<Symbol> dependencies = SymbolExtractor.extract(root);
 
-        PlanFragment fragment = new PlanFragment(id, isPartitioned, Maps.filterKeys(allocator.getTypes(), in(dependencies)), root);
+        // zeng: 计划片段
+        PlanFragment fragment = new PlanFragment(
+                id,
+                isPartitioned,  // zeng: 是否分成多个partition
+                Maps.filterKeys(allocator.getTypes(), in(dependencies)),    // zeng: 依赖的symbol -> Type 映射
+                root    // zeng: plan node
+        );
 
+        // zeng: 分布式逻辑计划子树
+        // zeng: 参数为 本计划片段， 依赖的计划子树
         return new SubPlan(fragment, children);
     }
 }

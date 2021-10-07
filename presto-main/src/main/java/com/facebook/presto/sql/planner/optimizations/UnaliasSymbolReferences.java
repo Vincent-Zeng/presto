@@ -108,6 +108,7 @@ public class UnaliasSymbolReferences
             for (Map.Entry<Symbol, Expression> entry : node.getOutputMap().entrySet()) {
                 Expression expression = canonicalize(entry.getValue());
 
+                // zeng: 收集两个symbol的简单映射
                 if (entry.getValue() instanceof QualifiedNameReference) {
                     Symbol symbol = Symbol.fromQualifiedName(((QualifiedNameReference) entry.getValue()).getName());
                     if (!symbol.equals(entry.getKey())) {
@@ -115,6 +116,7 @@ public class UnaliasSymbolReferences
                     }
                 }
 
+                // zeng: 如果只是简单映射, 则去除映射
                 Symbol canonical = canonicalize(entry.getKey());
 
                 if (!assignments.containsKey(canonical)) {

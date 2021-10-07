@@ -45,10 +45,13 @@ public class PlanSanityChecker
             PlanNode source = node.getSource();
             source.accept(this, context); // visit child
 
+            // zeng: group by clause 列存在
             Preconditions.checkArgument(source.getOutputSymbols().containsAll(node.getGroupBy()), "Invalid node. Group by symbols (%s) not in source plan output (%s)", node.getGroupBy(), node.getSource().getOutputSymbols());
 
             for (FunctionCall call : node.getAggregations().values()) {
+                // zeng: 函数调用涉及symbol
                 Set<Symbol> dependencies = DependencyExtractor.extract(call);
+                // zeng: symbol存在
                 Preconditions.checkArgument(source.getOutputSymbols().containsAll(dependencies), "Invalid node. Aggregation dependencies (%s) not in source plan output (%s)", dependencies, node.getSource().getOutputSymbols());
             }
 
@@ -61,10 +64,12 @@ public class PlanSanityChecker
             PlanNode source = node.getSource();
             source.accept(this, context); // visit child
 
+            // zeng: 列存在
             Preconditions.checkArgument(source.getOutputSymbols().containsAll(node.getOutputSymbols()), "Invalid node. Output symbols (%s) not in source plan output (%s)", node.getOutputSymbols(), node.getSource().getOutputSymbols());
 
             Set<Symbol> dependencies = DependencyExtractor.extract(node.getPredicate());
 
+            // zeng: where clause expression 中的列 都存在
             Preconditions.checkArgument(source.getOutputSymbols().containsAll(dependencies), "Invalid node. Predicate dependencies (%s) not in source plan output (%s)", dependencies, node.getSource().getOutputSymbols());
 
             return null;
@@ -76,6 +81,7 @@ public class PlanSanityChecker
             PlanNode source = node.getSource();
             source.accept(this, context); // visit child
 
+            // zeng: 列存在
             for (Expression expression : node.getExpressions()) {
                 Set<Symbol> dependencies = DependencyExtractor.extract(expression);
                 Preconditions.checkArgument(source.getOutputSymbols().containsAll(dependencies), "Invalid node. Expression dependencies (%s) not in source plan output (%s)", dependencies, node.getSource().getOutputSymbols());
@@ -90,6 +96,7 @@ public class PlanSanityChecker
             PlanNode source = node.getSource();
             source.accept(this, context); // visit child
 
+            // zeng: 列存在
             Preconditions.checkArgument(source.getOutputSymbols().containsAll(node.getOutputSymbols()), "Invalid node. Output symbols (%s) not in source plan output (%s)", node.getOutputSymbols(), node.getSource().getOutputSymbols());
             Preconditions.checkArgument(source.getOutputSymbols().containsAll(node.getOrderBy()), "Invalid node. Order by dependencies (%s) not in source plan output (%s)", node.getOrderBy(), node.getSource().getOutputSymbols());
 
@@ -102,6 +109,7 @@ public class PlanSanityChecker
             PlanNode source = node.getSource();
             source.accept(this, context); // visit child
 
+            // zeng: 列存在
             Preconditions.checkArgument(source.getOutputSymbols().containsAll(node.getOutputSymbols()), "Invalid node. Output symbols (%s) not in source plan output (%s)", node.getOutputSymbols(), node.getSource().getOutputSymbols());
             Preconditions.checkArgument(source.getOutputSymbols().containsAll(node.getOrderBy()), "Invalid node. Order by dependencies (%s) not in source plan output (%s)", node.getOrderBy(), node.getSource().getOutputSymbols());
 
@@ -111,9 +119,11 @@ public class PlanSanityChecker
         @Override
         public Void visitOutput(OutputNode node, Void context)
         {
+            // zeng: visit 依赖节点
             PlanNode source = node.getSource();
             source.accept(this, context); // visit child
 
+            // zeng: 依赖节点 是否包含 我们所需的所有列
             Preconditions.checkArgument(source.getOutputSymbols().containsAll(node.getAssignments().values()), "Invalid node. Output column dependencies (%s) not in source plan output (%s)", node.getAssignments().values(), node.getSource().getOutputSymbols());
 
             return null;
@@ -131,6 +141,7 @@ public class PlanSanityChecker
         @Override
         public Void visitJoin(JoinNode node, Void context)
         {
+            // zeng: TODO
             node.getLeft().accept(this, context);
             node.getRight().accept(this, context);
 
@@ -145,6 +156,7 @@ public class PlanSanityChecker
         @Override
         public Void visitTableScan(TableScanNode node, Void context)
         {
+            // zeng: 叶子节点了 不用再visit依赖节点
             return null;
         }
     }

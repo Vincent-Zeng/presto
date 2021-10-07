@@ -69,19 +69,24 @@ public class PruneUnreferencedOutputs
         @Override
         public PlanNode rewriteJoin(JoinNode node, Set<Symbol> expectedOutputs, PlanRewriter<Set<Symbol>> planRewriter)
         {
+            // zeng: left期望的输出
             Set<Symbol> leftInputs = ImmutableSet.<Symbol>builder()
                     .addAll(expectedOutputs)
                     .addAll(Iterables.transform(node.getCriteria(), leftGetter()))
                     .build();
 
+            // zeng: right期望的输出
             Set<Symbol> rightInputs = ImmutableSet.<Symbol>builder()
                     .addAll(expectedOutputs)
                     .addAll(Iterables.transform(node.getCriteria(), rightGetter()))
                     .build();
 
+            // zeng: left
             PlanNode left = planRewriter.rewrite(node.getLeft(), leftInputs);
+            // zeng: right
             PlanNode right = planRewriter.rewrite(node.getRight(), rightInputs);
 
+            // zeng: new JoinNode
             return new JoinNode(left, right, node.getCriteria());
         }
 
@@ -93,26 +98,31 @@ public class PruneUnreferencedOutputs
 
             ImmutableMap.Builder<Symbol, FunctionHandle> functions = ImmutableMap.builder();
             ImmutableMap.Builder<Symbol, FunctionCall> functionCalls = ImmutableMap.builder();
+
             for (Map.Entry<Symbol, FunctionCall> entry : node.getAggregations().entrySet()) {
                 Symbol symbol = entry.getKey();
 
-                if (expectedOutputs.contains(symbol)) {
-                    FunctionCall call = entry.getValue();
-                    expectedInputs.addAll(DependencyExtractor.extract(call));
+                if (expectedOutputs.contains(symbol)) { // zeng: 期望输出的列
+                    FunctionCall call = entry.getValue();   // zeng: 该列的函数表达式
+                    expectedInputs.addAll(DependencyExtractor.extract(call));   // zeng: 函数表达式中包含的symbol
 
+                    // zeng: 期望输出的函数表达式
                     functionCalls.put(symbol, call);
                     functions.put(symbol, node.getFunctions().get(symbol));
                 }
             }
 
+            // zeng: 期望输出的列
             PlanNode source = planRewriter.rewrite(node.getSource(), expectedInputs.build());
 
+            // zeng: new AggregationNode
             return new AggregationNode(source, node.getGroupBy(), functionCalls.build(), functions.build());
         }
 
         @Override
         public PlanNode rewriteTableScan(TableScanNode node, Set<Symbol> expectedOutputs, PlanRewriter<Set<Symbol>> planRewriter)
         {
+            // zeng: 期望得到的列
             Map<Symbol, ColumnHandle> assignments = new HashMap<>();
             for (Map.Entry<Symbol, ColumnHandle> entry : node.getAssignments().entrySet()) {
                 Symbol symbol = entry.getKey();
@@ -131,12 +141,14 @@ public class PruneUnreferencedOutputs
                 assignments.put(first.getKey(), first.getValue());
             }
 
+            // zeng: 从 获取表所有列 变成 获取期望的列
             return new TableScanNode(node.getTable(), assignments);
         }
 
         @Override
         public PlanNode rewriteFilter(FilterNode node, Set<Symbol> expectedOutputs, PlanRewriter<Set<Symbol>> planRewriter)
         {
+            // zeng: 期望得到的列
             Set<Symbol> expectedInputs = ImmutableSet.<Symbol>builder()
                     .addAll(DependencyExtractor.extract(node.getPredicate()))
                     .addAll(expectedOutputs)
@@ -157,6 +169,7 @@ public class PruneUnreferencedOutputs
                 Symbol output = node.getOutputSymbols().get(i);
                 Expression expression = node.getExpressions().get(i);
 
+                // zeng: 期望得到的列
                 if (expectedOutputs.contains(output)) {
                     expectedInputs.addAll(DependencyExtractor.extract(expression));
                     builder.put(output, expression);
@@ -171,8 +184,11 @@ public class PruneUnreferencedOutputs
         @Override
         public PlanNode rewriteOutput(OutputNode node, Set<Symbol> expectedOutputs, PlanRewriter<Set<Symbol>> planRewriter)
         {
+            // zeng: 期望得到的列
             Set<Symbol> expectedInputs = ImmutableSet.copyOf(node.getAssignments().values());
+            // zeng: 改写source
             PlanNode source = planRewriter.rewrite(node.getSource(), expectedInputs);
+
             return new OutputNode(source, node.getColumnNames(), node.getAssignments());
         }
 
@@ -186,6 +202,7 @@ public class PruneUnreferencedOutputs
         @Override
         public PlanNode rewriteTopN(TopNNode node, Set<Symbol> expectedOutputs, PlanRewriter<Set<Symbol>> planRewriter)
         {
+            // zeng: 期望得到的列
             Set<Symbol> expectedInputs = ImmutableSet.copyOf(concat(expectedOutputs, node.getOrderBy()));
 
             PlanNode source = planRewriter.rewrite(node.getSource(), expectedInputs);
@@ -196,6 +213,7 @@ public class PruneUnreferencedOutputs
         @Override
         public PlanNode rewriteSort(SortNode node, Set<Symbol> expectedOutputs, PlanRewriter<Set<Symbol>> planRewriter)
         {
+            // zeng: 期望得到的列
             Set<Symbol> expectedInputs = ImmutableSet.copyOf(concat(expectedOutputs, node.getOrderBy()));
 
             PlanNode source = planRewriter.rewrite(node.getSource(), expectedInputs);

@@ -24,7 +24,7 @@ class AnalysisContext
     {
         this(
                 session,    // zeng: session
-                new SymbolAllocator()   // zeng: TODO
+                new SymbolAllocator()   // zeng: symbol分配器
         );
     }
 

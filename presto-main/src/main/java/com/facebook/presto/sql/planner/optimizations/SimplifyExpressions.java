@@ -68,7 +68,10 @@ public class SimplifyExpressions
         public PlanNode rewriteProject(ProjectNode node, Void context, PlanRewriter<Void> planRewriter)
         {
             PlanNode source = planRewriter.rewrite(node.getSource(), context);
+
+            // zeng: 简化表达式
             Map<Symbol, Expression> assignments = ImmutableMap.copyOf(Maps.transformValues(node.getOutputMap(), simplifyExpressionFunction()));
+
             return new ProjectNode(source, assignments);
         }
 
@@ -76,6 +79,8 @@ public class SimplifyExpressions
         public PlanNode rewriteFilter(FilterNode node, Void context, PlanRewriter<Void> planRewriter)
         {
             PlanNode source = planRewriter.rewrite(node.getSource(), context);
+
+            // zeng: 简化表达式
             return new FilterNode(source, simplifyExpression(node.getPredicate()));
         }
 
@@ -93,6 +98,8 @@ public class SimplifyExpressions
 
         private Expression simplifyExpression(Expression input)
         {
+            // zeng: ExpressionInterpreter.visitXxx
+            // zeng: 应该就是把表达式中能算的部分先算了
             return ExpressionInterpreter.toExpression(interpreter.process(input, null));
         }
     }

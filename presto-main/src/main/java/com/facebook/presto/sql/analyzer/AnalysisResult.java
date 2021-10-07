@@ -41,22 +41,24 @@ public class AnalysisResult
             Set<AnalyzedFunction> aggregations,
             @Nullable Long limit,
             List<AnalyzedOrdering> orderBy,
-            Query rewrittenQuery)
+            Query rewrittenQuery
+    )
     {
         return new AnalysisResult(
-                context.getSymbolAllocator(),
-                context.getTableDescriptors(),
-                context.getTableMetadata(),
-                context.getInlineViews(),
-                context.getJoinCriteria(),
-                distinct,
-                aggregations,
-                predicate,
-                output,
-                groupBy,
-                orderBy,
-                limit,
-                rewrittenQuery);
+                context.getSymbolAllocator(),   // zeng: symbol分配器
+                context.getTableDescriptors(),  // zeng: table -> Field列表 映射
+                context.getTableMetadata(), // zeng: table -> TableMetadata 映射
+                context.getInlineViews(),   // zeng: Subquery -> AnalysisResult
+                context.getJoinCriteria(),  // zeng: Join -> AnalyzedJoinClause列表 映射
+                distinct,   // zeng: distinct
+                aggregations,   // zeng: AnalyzedFunction列表
+                predicate,  // zeng: where AnalyzedExpression
+                output, // zeng: select clause 中 Field列表 和 symbol -> AnalyzedExpression 映射
+                groupBy,    // zeng: group by clause 中 AnalyzedExpression列表
+                orderBy,    // zeng: order by clause 中 AnalyzedOrdering 列表
+                limit,  // zeng: limit
+                rewrittenQuery  // zeng: Query树
+        );
     }
 
     private AnalysisResult(SymbolAllocator symbolAllocator,

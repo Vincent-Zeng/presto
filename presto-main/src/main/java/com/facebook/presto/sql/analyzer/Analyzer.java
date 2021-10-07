@@ -126,7 +126,7 @@ public class Analyzer
             throw new UnsupportedOperationException("not yet implemented: " + node);
         }
 
-        // zeng: query 逻辑计划
+        // zeng: 分析获得 query 要素
         @Override
         protected AnalysisResult visitQuery(Query query, AnalysisContext context)
         {
@@ -162,15 +162,18 @@ public class Analyzer
 
             // zeng: 解析group by后的expression
             List<AnalyzedExpression> groupBy = analyzeGroupBy(query.getGroupBy(), sourceDescriptor);
+
             // zeng: 解析select 和 order by 得到所有的AnalyzedFunction
             Set<AnalyzedFunction> aggregations = analyzeAggregations(query.getGroupBy(), query.getSelect(), query.getOrderBy(), sourceDescriptor);
-            // zeng: TODO
+
+            // zeng: 解析sort by clause的expression
             List<AnalyzedOrdering> orderBy = analyzeOrderBy(query.getOrderBy(), sourceDescriptor);
-            // zeng: TODO
+
+            // zeng: 解析select后的expression， 得到 Field列表 和 symbol -> AnalyzedExpression 映射
             AnalyzedOutput output = analyzeOutput(query.getSelect(), context.getSymbolAllocator(), sourceDescriptor);
 
-            if (query.getSelect().isDistinct()) {
-                // zeng: TODO
+            if (query.getSelect().isDistinct()) {   // zeng: select后有无distinct
+                // zeng: 只是做校验 —— select distinct语句中， order by clause的 expression 必须在 select clause中出现
                 analyzeDistinct(output, orderBy);
             }
 
@@ -180,7 +183,7 @@ public class Analyzer
                 limit = Long.parseLong(query.getLimit());
             }
 
-            // zeng: TODO
+            // zeng: 构造逻辑计划
             return AnalysisResult.newInstance(context, query.getSelect().isDistinct(), output, predicate, groupBy, aggregations, limit, orderBy, query);
         }
 
@@ -323,13 +326,16 @@ public class Analyzer
 
         private void analyzeDistinct(AnalyzedOutput output, List<AnalyzedOrdering> orderBy)
         {
+            // zeng: 所有 select 后的 expression 改写之后 的 expression
             Set<Expression> outputExpressions = ImmutableSet.copyOf(Iterables.transform(output.getExpressions().values(), rewrittenExpressionGetter()));
 
             // get all order by expression that are not in the select clause
+            // zeng: 不在select clause， 而在 sort by clause的 expression
             List<AnalyzedOrdering> missingOrderings = IterableTransformer.on(orderBy)
                     .select(compose(not(in(outputExpressions)), Functions.compose(rewrittenExpressionGetter(), expressionGetter())))
                     .list();
 
+            // zeng: select distinct语句中， order by clause的 expression 必须在 select clause中出现
             if (!missingOrderings.isEmpty()) {
                 List<String> expressions = IterableTransformer.on(missingOrderings)
                         .transform(nodeGetter())
@@ -349,8 +355,12 @@ public class Analyzer
                     throw new SemanticException(sortItem, "Custom null ordering not yet supported");
                 }
 
+                // zeng: 解析 sort by 后的 expression
                 AnalyzedExpression expression = new ExpressionAnalyzer(metadata).analyze(sortItem.getSortKey(), descriptor);
-                builder.add(new AnalyzedOrdering(expression, sortItem.getOrdering(), sortItem));
+                builder.add(
+                        // zeng: 解析完的expression, 升序还是降序， SortItem节点
+                        new AnalyzedOrdering(expression, sortItem.getOrdering(), sortItem)
+                );
             }
 
             return builder.build();
@@ -380,41 +390,75 @@ public class Analyzer
             BiMap<Symbol, AnalyzedExpression> assignments = HashBiMap.create();
             ImmutableList.Builder<Type> types = ImmutableList.builder();
 
-            for (Expression expression : select.getSelectItems()) {
-                if (expression instanceof AllColumns) {
+            for (Expression expression : select.getSelectItems()) { // zeng: select后的expression
+
+                if (expression instanceof AllColumns) { // zeng: 带通配符的expression
                     // expand * and T.*
+
+                    // zeng: 限定名
                     Optional<QualifiedName> starPrefix = ((AllColumns) expression).getPrefix();
+
                     for (Field field : descriptor.getFields()) {
+
+                        // zeng: 表字段限定名
                         Optional<QualifiedName> prefix = field.getPrefix();
                         // Check if the prefix of the field name (i.e., the table name or relation alias) have a suffix matching the prefix of the wildcard
                         // e.g., SELECT T.* FROM S.T should resolve correctly
+
+                        // zeng: 表字段限定名 是否 包含 expression中的限定名
                         if (!starPrefix.isPresent() || prefix.isPresent() && prefix.get().hasSuffix(starPrefix.get())) {
+
+                            // zeng: 字段名
                             names.add(field.getAttribute());
+                            // zeng: 字段symbol
                             symbols.add(field.getSymbol());
+                            // zeng: 字段类型
                             types.add(field.getType());
-                            assignments.put(field.getSymbol(), new AnalyzedExpression(field.getType(), new QualifiedNameReference(field.getSymbol().toQualifiedName())));
+
+                            assignments.put(
+                                    field.getSymbol(),  // zeng: symbol
+                                    new AnalyzedExpression( // zeng: expression with symbol
+                                            field.getType(),
+                                            new QualifiedNameReference(field.getSymbol().toQualifiedName())
+                                    )
+                            );
+
                         }
+
                     }
+
                 }
                 else {
                     Optional<String> alias = Optional.absent();
-                    if (expression instanceof AliasedExpression) {
+                    if (expression instanceof AliasedExpression) {  // zeng: 带别名的expression
                         AliasedExpression aliased = (AliasedExpression) expression;
 
+                        // zeng: 别名
                         alias = Optional.of(aliased.getAlias());
+
+                        // zeng: 去掉别名的expression
                         expression = aliased.getExpression();
                     }
-                    else if (expression instanceof QualifiedNameReference) {
-                        alias = Optional.of(((QualifiedNameReference) expression).getName().getSuffix());
+                    else if (expression instanceof QualifiedNameReference) {    // zeng: 带限定名的expression
+                        // zeng: TODO 列名？
+                        alias = Optional.of(
+                                ((QualifiedNameReference) expression)
+                                        .getName()
+                                        .getSuffix()
+                        );
                     }
 
+                    // zeng: 解析expression
                     AnalyzedExpression analysis = new ExpressionAnalyzer(metadata).analyze(expression, descriptor);
+
                     Symbol symbol;
-                    if (assignments.containsValue(analysis)) {
+                    if (assignments.containsValue(analysis)) {  // zeng: 如果通配符已经中已经包括这个expression
                         symbol = assignments.inverse().get(analysis);
                     }
                     else {
+                        // zeng: 给整个expr一个symbol
                         symbol = allocator.newSymbol(analysis.getRewrittenExpression(), analysis.getType());
+
                         assignments.put(symbol, analysis);
                     }
 
@@ -422,9 +466,17 @@ public class Analyzer
                     names.add(alias);
                     types.add(analysis.getType());
                 }
+
             }
 
-            return new AnalyzedOutput(new TupleDescriptor(names.build(), symbols.build(), types.build()), assignments);
+            return new AnalyzedOutput(
+                    new TupleDescriptor(    // zeng: Field列表
+                            names.build(),  // zeng: 字段名
+                            symbols.build(),    // zeng: symbol
+                            types.build()   // zeng: 列类型
+                    ),
+                    assignments // zeng: symbol -> AnalyzedExpression映射
+            );
         }
 
         private List<AnalyzedExpression> analyzeGroupBy(List<Expression> groupBy, TupleDescriptor descriptor)
