@@ -117,6 +117,8 @@ public class LocalExecutionPlanner
         return plan.accept(new Visitor(), null).getOperator();
     }
 
+    // zeng: 对每个split执行计划片段的地方
+    // zeng: 按顺序遍历计划片段， 执行visitXxx
     private class Visitor
             extends PlanVisitor<Void, PhysicalOperation>
     {
@@ -242,6 +244,7 @@ public class LocalExecutionPlanner
             return new PhysicalOperation(new LimitOperator(source.getOperator(), node.getCount()), source.getLayout());
         }
 
+        // zeng: TODO
         @Override
         public PhysicalOperation visitAggregation(AggregationNode node, Void context)
         {
@@ -296,6 +299,7 @@ public class LocalExecutionPlanner
             return new PhysicalOperation(operator, outputMappings);
         }
 
+        // zeng: TODO
         @Override
         public PhysicalOperation visitTableScan(TableScanNode node, Void context)
         {
@@ -439,12 +443,14 @@ public class LocalExecutionPlanner
                 channel++;
             }
 
-            Operator aggregationOperator = new HashAggregationOperator(source.getOperator(),
+            Operator aggregationOperator = new HashAggregationOperator(
+                    source.getOperator(),
                     Iterables.getOnlyElement(getChannelsForSymbols(groupBySymbols, source.getLayout())),
                     node.getStep(),
                     functionDefinitions,
                     100_000,
-                    maxOperatorMemoryUsage);
+                    maxOperatorMemoryUsage
+            );
 
             return new PhysicalOperation(aggregationOperator, outputMappings.build());
         }

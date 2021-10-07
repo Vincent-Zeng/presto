@@ -59,7 +59,9 @@ public class SplitAssignments
             }
 
             // for each split, pick the node with the smallest number of assignments
+            // zeng: 选择nodes中分配到最少split的node
             Node chosen = Ordering.from(byAssignedSplitsCount).min(assignment.getNodes());
+            // zeng: node -> 分配到的Split列表
             result.put(chosen, assignment.getSplit());
         }
 

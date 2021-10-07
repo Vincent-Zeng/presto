@@ -77,6 +77,7 @@ public class SqlStageExecution
             stageState.set(StageState.FINISHED);
         }
 
+        // zeng: 所有输出列的type
         tupleInfos = ImmutableList.copyOf(IterableTransformer.on(plan.getRoot().getOutputSymbols())
                 .transform(Functions.forMap(plan.getSymbols()))
                 .transform(com.facebook.presto.sql.analyzer.Type.toRaw())
@@ -114,6 +115,7 @@ public class SqlStageExecution
             sources.put(task.getTaskId(), task.getTaskInfo().getSelf());
         }
 
+        // zeng: 依赖的task输出的service url, node表示符, 输出列的type
         return new ExchangePlanFragmentSource(sources.build(), outputId, tupleInfos);
     }
 
@@ -147,6 +149,7 @@ public class SqlStageExecution
         }
 
         try {
+            // zeng: start task
             // start tasks out side of loop
             for (RemoteTask task : tasks) {
                 task.start();

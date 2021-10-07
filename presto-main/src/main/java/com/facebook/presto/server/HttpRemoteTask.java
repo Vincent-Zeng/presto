@@ -125,14 +125,18 @@ public class HttpRemoteTask
     @Override
     public void start()
     {
+        // zeng: TODO
+
         TaskInfo taskInfo = this.taskInfo.get();
-        QueryFragmentRequest queryFragmentRequest = new QueryFragmentRequest(session,
+        QueryFragmentRequest queryFragmentRequest = new QueryFragmentRequest(
+                session,
                 taskInfo.getQueryId(),
                 taskInfo.getStageId(),
                 planFragment,
                 splits,
                 exchangeSources,
-                ImmutableList.copyOf(transform(taskInfo.getOutputBuffers(), PageBufferInfo.bufferIdGetter())));
+                ImmutableList.copyOf(transform(taskInfo.getOutputBuffers(), PageBufferInfo.bufferIdGetter()))
+        );
 
         Request request = preparePut()
                 .setUri(taskInfo.getSelf())

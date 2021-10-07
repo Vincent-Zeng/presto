@@ -68,13 +68,17 @@ public class DistributedExecutionPlanner
 
     public StageExecutionPlan plan(SubPlan root, Expression inheritedPredicate)
     {
+        // zeng: root计划片段
         PlanFragment currentFragment = root.getFragment();
 
         // get partitions for this fragment
 
         Visitor visitor = new Visitor();
 
+        // zeng: 计划片段 dag 遍历, 获得 Partition 列表
         List<Partition> partitions = currentFragment.getRoot().accept(visitor, inheritedPredicate);
+
+        // zeng: 当前片段没有分区， 则只需要一个Partition
         if (!currentFragment.isPartitioned()) {
             // create a single partition on a random node for this fragment
             ArrayList<Node> nodes = new ArrayList<>(nodeManager.getActiveNodes());
@@ -86,14 +90,19 @@ public class DistributedExecutionPlanner
 
         // create child stages
         ImmutableList.Builder<StageExecutionPlan> dependencies = ImmutableList.builder();
-        for (SubPlan childPlan : root.getChildren()) {
+        for (SubPlan childPlan : root.getChildren()) {  // zeng: 依赖的 计划片段
+            // zeng: TODO
             Expression predicate = visitor.getInheritedPredicatesBySourceFragmentId().get(childPlan.getFragment().getId());
             Preconditions.checkNotNull(predicate, "Expected to find a predicate for fragment %s", childPlan.getFragment().getId());
 
+            // zeng: 每个依赖的计划片段构建StageExecutionPlan
             StageExecutionPlan dependency = plan(childPlan, predicate);
+            // zeng: 依赖的 StageExecutionPlan列表
             dependencies.add(dependency);
         }
 
+        // zeng: new StageExecutionPlan
+        // zeng: 参数为 计划片段，Partition 列表, 依赖的StageExecutionPlan列表
         return new StageExecutionPlan(currentFragment, partitions, dependencies.build());
     }
 
@@ -112,14 +121,17 @@ public class DistributedExecutionPlanner
         public List<Partition> visitTableScan(TableScanNode node, Expression inheritedPredicate)
         {
             // get splits for table
+            // zeng: TODO 获取 table 分片(和每个分片分配到哪些work node)列表 ？
             Iterable<SplitAssignments> splitAssignments = splitManager.getSplitAssignments(session, node.getTable(), inheritedPredicate, node.getAssignments());
 
             // divide splits amongst the nodes
+            // zeng: node分配到哪些Split
             Multimap<Node, Split> nodeSplits = SplitAssignments.balancedNodeAssignment(queryState, splitAssignments);
 
             // create a partition for each node
             ImmutableList.Builder<Partition> partitions = ImmutableList.builder();
             for (Entry<Node, Collection<Split>> entry : nodeSplits.asMap().entrySet()) {
+                // zeng: 每个node下的所有split(每个split封装成TableScanPlanFragmentSource)
                 List<PlanFragmentSource> sources = ImmutableList.copyOf(transform(entry.getValue(), new Function<Split, PlanFragmentSource>()
                 {
                     @Override
@@ -128,14 +140,18 @@ public class DistributedExecutionPlanner
                         return new TableScanPlanFragmentSource(split);
                     }
                 }));
+
+                // zeng: 每个node分配一个Partition(封装node分配到的所有split)
                 partitions.add(new Partition(entry.getKey(), sources));
             }
+
             return partitions.build();
         }
 
         @Override
         public List<Partition> visitJoin(JoinNode node, Expression inheritedPredicate)
         {
+            // zeng: TODO
             List<Expression> leftConjuncts = new ArrayList<>();
             List<Expression> rightConjuncts = new ArrayList<>();
 
@@ -177,6 +193,7 @@ public class DistributedExecutionPlanner
         @Override
         public List<Partition> visitExchange(ExchangeNode node, Expression inheritedPredicate)
         {
+            // zeng: TODO
             inheritedPredicatesBySourceFragmentId.put(node.getSourceFragmentId(), inheritedPredicate);
 
             // exchange node is unpartitioned
@@ -188,15 +205,18 @@ public class DistributedExecutionPlanner
         {
             Expression predicate = node.getPredicate();
             if (!inheritedPredicate.equals(BooleanLiteral.TRUE_LITERAL)) {
+                // zeng: TODO
                 predicate = new LogicalBinaryExpression(LogicalBinaryExpression.Type.AND, predicate, inheritedPredicate);
             }
 
+            // zeng: visit依赖节点
             return node.getSource().accept(this, predicate);
         }
 
         @Override
         public List<Partition> visitAggregation(AggregationNode node, Expression inheritedPredicate)
         {
+            // zeng: visit 依赖节点
             return node.getSource().accept(this, BooleanLiteral.TRUE_LITERAL);
         }
 

@@ -49,7 +49,9 @@ public class SqlStageManager
             Iterable<? extends RemoteTask> tasks,
             Iterable<? extends StageExecution> subStages)
     {
+        // zeng: new SqlStageExecution
         SqlStageExecution stageExecution = new SqlStageExecution(queryId, stageId, location, plan, tasks, subStages);
+        // zeng: all stage
         stages.put(stageExecution.getStageId(), stageExecution);
         return stageExecution;
     }

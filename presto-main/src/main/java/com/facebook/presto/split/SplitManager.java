@@ -66,6 +66,7 @@ import static com.google.common.base.Predicates.in;
 import static com.google.common.base.Predicates.instanceOf;
 import static com.google.common.base.Predicates.or;
 
+// zeng: TODO
 public class SplitManager
 {
     private final NodeManager nodeManager;
@@ -84,6 +85,7 @@ public class SplitManager
         this.maxSplitCount = checkNotNull(config, "config is null").getMaxSplitCount();
     }
 
+    // zeng: TODO
     public Iterable<SplitAssignments> getSplitAssignments(Session session, TableHandle handle, Expression predicate, Map<Symbol, ColumnHandle> mappings)
     {
         Iterable<SplitAssignments> assignments;

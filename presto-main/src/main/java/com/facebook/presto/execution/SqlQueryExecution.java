@@ -163,7 +163,7 @@ public class SqlQueryExecution
             // zeng: 构建分布式逻辑计划
             SubPlan subplan = analyzeQuery();
 
-            // zeng: TODO 构建物理计划？
+            // zeng: 构建物理计划
             // plan distribution of query
             planDistribution(subplan);
 
@@ -174,6 +174,7 @@ public class SqlQueryExecution
                         QueryState.PLANNING);
             }
 
+            // zeng: 提交output stage
             // start the query execution
             startStage(outputStage.get());
         }
@@ -228,6 +229,7 @@ public class SqlQueryExecution
         // time distribution planning
         long distributedPlanningStart = System.nanoTime();
 
+        // zeng: 构建 stage plan dag, 返回output stage plan
         // plan the execution on the active nodes
         DistributedExecutionPlanner distributedPlanner = new DistributedExecutionPlanner(nodeManager, splitManager, queryState, session);
         StageExecutionPlan outputStageExecutionPlan = distributedPlanner.plan(subplan);
@@ -240,13 +242,16 @@ public class SqlQueryExecution
                     queryState);
 
             // record field names
+            // zeng: 输出哪些列
             fieldNames.set(ImmutableList.copyOf(outputStageExecutionPlan.getFieldNames()));
 
             // build the stage execution objects (this doesn't schedule execution)
+            // zeng: 构建output stage
             StageExecution outputStage = createStage(new AtomicInteger(), outputStageExecutionPlan, ImmutableList.of(ROOT_OUTPUT_BUFFER_NAME));
             this.outputStage.set(outputStage);
         }
 
+        // zeng: 记录构建物理计划的时长
         // record planning time
         queryStats.recordDistributedPlanningTime(distributedPlanningStart);
     }
@@ -255,12 +260,15 @@ public class SqlQueryExecution
     {
         Preconditions.checkState(!Thread.holdsLock(this), "Can not start while holding a lock on this");
 
+        // zeng: 先执行依赖的stage
         // start all sub stages before starting the main stage
         for (StageExecution subStage : stage.getSubStages()) {
             startStage(subStage);
         }
+
         // if query is not finished, start the stage, otherwise cancel it
         if (!queryState.get().isDone()) {
+            // zeng: start tasks
             stage.startTasks();
         } else {
             stage.cancel();
@@ -269,38 +277,57 @@ public class SqlQueryExecution
 
     private StageExecution createStage(AtomicInteger nextStageId, StageExecutionPlan stageExecutionPlan, List<String> outputIds)
     {
+        // zeng: stage id
         String stageId = queryId + "." + nextStageId.getAndIncrement();
 
+        // zeng: 构建依赖的stage
         Map<String, StageExecution> subStages = IterableTransformer.on(stageExecutionPlan.getSubStages())
                 .uniqueIndex(fragmentIdGetter())
                 .transformValues(stageCreator(nextStageId, stageExecutionPlan.getPartitions()))
                 .immutableMap();
 
+        // zeng: stage service url
         URI stageLocation = locationFactory.createStageLocation(stageId);
+
         int taskId = 0;
         ImmutableList.Builder<RemoteTask> tasks = ImmutableList.builder();
+
+        // zeng: 每个Partition创建一个Task
         for (Partition partition : stageExecutionPlan.getPartitions()) {
+            // zeng: node标识符
             String nodeIdentifier = partition.getNode().getNodeIdentifier();
 
+            // zeng: 计划片段id -> ExchangePlanFragmentSource
             ImmutableMap.Builder<String, ExchangePlanFragmentSource> exchangeSources = ImmutableMap.builder();
             for (Entry<String, StageExecution> entry : subStages.entrySet()) {
                 exchangeSources.put(entry.getKey(), entry.getValue().getExchangeSourceFor(nodeIdentifier));
             }
 
-            tasks.add(remoteTaskFactory.createRemoteTask(session,
+            tasks.add(remoteTaskFactory.createRemoteTask(   // zeng: 创建task
+                    session,
                     queryId,
                     stageId,
-                    stageId + '.' + taskId++,
-                    partition.getNode(),
-                    stageExecutionPlan.getFragment(),
-                    partition.getSplits(),
-                    exchangeSources.build(),
-                    outputIds));
+                    stageId + '.' + taskId++,   // zeng: task id
+                    partition.getNode(),    // zeng: work node
+                    stageExecutionPlan.getFragment(),   // zeng: 计划片段
+                    partition.getSplits(),  // zeng: split列表
+                    exchangeSources.build(),    // zeng: 计划片段id -> ExchangePlanFragmentSource
+                    outputIds   // zeng: TODO
+                    ));
 
+            // zeng: 查询统计
             queryStats.addSplits(partition.getSplits().size());
         }
 
-        return stageManager.createStage(queryId, stageId, stageLocation, stageExecutionPlan.getFragment(), tasks.build(), subStages.values());
+        // zeng: stage
+        return stageManager.createStage(
+                queryId,
+                stageId,
+                stageLocation,  // zeng: stage service url
+                stageExecutionPlan.getFragment(),   // zeng: 计划片段
+                tasks.build(),  // zeng: task列表
+                subStages.values()  // zeng: 依赖的stage列表
+        );
     }
 
     @Override

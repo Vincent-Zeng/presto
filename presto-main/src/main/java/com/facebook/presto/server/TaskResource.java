@@ -66,14 +66,16 @@ public class TaskResource
         try {
             checkNotNull(queryFragmentRequest, "queryFragmentRequest is null");
 
-            TaskInfo taskInfo = taskManager.createTask(queryFragmentRequest.getSession(),
+            TaskInfo taskInfo = taskManager.createTask(
+                    queryFragmentRequest.getSession(),
                     queryFragmentRequest.getQueryId(),
                     queryFragmentRequest.getStageId(),
                     taskId,
                     queryFragmentRequest.getFragment(),
                     queryFragmentRequest.getSplits(),
                     queryFragmentRequest.getExchangeSources(),
-                    queryFragmentRequest.getOutputIds());
+                    queryFragmentRequest.getOutputIds()
+            );
 
             URI pagesUri = uriBuilderFrom(uriInfo.getRequestUri()).appendPath(taskInfo.getTaskId()).build();
             return Response.created(pagesUri).entity(taskInfo).build();

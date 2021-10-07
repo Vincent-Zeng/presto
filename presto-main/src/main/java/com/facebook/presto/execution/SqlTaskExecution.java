@@ -126,6 +126,7 @@ public class SqlTaskExecution
                 worker.call();
             }
             else {
+                // zeng: 每个split一个callable
                 List<Callable<Void>> workers = ImmutableList.copyOf(Lists.transform(this.splits, new Function<PlanFragmentSource, Callable<Void>>()
                 {
                     @Override
@@ -147,6 +148,7 @@ public class SqlTaskExecution
                 // one thread is allocated to processing this task.
                 // SplitWorkers are designed to be "once-only" callables and become no-ops once someone
                 // invokes "call" on them. Therefore it is safe to invoke them here
+                // zeng: 每个callable都提交到线程池执行
                 List<FutureTask<Void>> results = shardExecutor.processBatch(workers);
                 for (FutureTask<Void> worker : Lists.reverse(results)) {
                     worker.run();
